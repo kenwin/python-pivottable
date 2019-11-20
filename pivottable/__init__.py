@@ -1,3 +1,3 @@
-from pivottable import (
+from .pivottable import (
     PivotTable, GroupBy, Sum
 )

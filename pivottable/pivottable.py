@@ -8,7 +8,7 @@ try:
     from itertools import product
 except ImportError: # we are in python <2.6
     def product(*args, **kwds):
-        pools = map(tuple, args) * kwds.get('repeat', 1)
+        pools = list(map(tuple, args)) * kwds.get('repeat', 1)
         result = [[]]
         for pool in pools:
             result = [x+[y] for x in result for y in pool]
@@ -52,7 +52,7 @@ if version_info<(2,5):
 else:
     from operator import itemgetter, attrgetter
 
-from itertools import ifilter
+
 
 __all__ = ['PivotTable', 'Agregation', 'GroupBy', 'Sum']
 
@@ -106,8 +106,7 @@ class PivotTable(object):
         old_val = self._xaxis
         if not all(hasattr(i, value) for i in self.rows):
             self._xaxis = old_val
-            raise(PivotTableError(u'Selected X-axis is not defined in '
-                                   'the submitted objects'))
+            raise PivotTableError
         else:
             self._xaxis = value
 
@@ -143,8 +142,7 @@ class PivotTable(object):
     def __yaxis_set(self, value):
         for i in value:
             if 'attr' not in i or 'label' not in i or 'aggr' not in i:
-                raise(PivotTableError(u'Your missing some mandatory key in '
-                                       'Y-axis definition'))
+                raise PivotTableError
         self._yaxis = value
 
     yaxis = property(__yaxis_get, __yaxis_set, doc=__yaxis_get.__doc__)
@@ -158,8 +156,7 @@ class PivotTable(object):
 
     def __xaxis_format_set(self, value):
         if not callable(value):
-            raise(PivotTableError(u'Value for X-axis format must be a '
-                                   'callable'))
+            raise PivotTableError
         self._xaxis_format = value
 
     xaxis_format = property(__xaxis_format_get, __xaxis_format_set, 
@@ -180,7 +177,7 @@ class PivotTable(object):
         self._headers = []
         try:
             self._gk = [None]*len(self.yaxis_order)
-        except TypeError, e:
+        except TypeError as e:
             not_ = 0
         try:
             for i in self._groupby_getter():
@@ -194,15 +191,15 @@ class PivotTable(object):
                             self._gk[not_] = i
                             not_ += 1
         except AttributeError:
-            raise(PivotTableError(u'You need to define Y-axis'))
+            raise PivotTableError
         # get rid of nonexistant values
         try:
             while 1:
                 self._gk.remove(None)
         except ValueError:
             pass
-        if u"metric" not in self._gk:
-            self._gk.append(u"metric")
+        if "metric" not in self._gk:
+            self._gk.append("metric")
         self._headers = self._gk + self._headers
         if self.xaxis_sort:
             self._headers += sorted(self._sheaders)
@@ -231,16 +228,16 @@ class PivotTable(object):
             kd = attrgetter(*self.yaxis_order)
         except TypeError:
             kd = o_attrgetter(*self.yaxis_order)
-        k_ = map(kd, self.rows)
+        k_ = list(map(kd, self.rows))
         # bonus point: we order the data
         # we don't sort the list in place because we might have more than one
         # object with the same key and because of that we have to set(list)
         # which will return the data unordered 
         try:
-            k_ = sorted(set(k_), key=itemgetter(*range(0, len(k_[0]))))
+            k_ = sorted(set(k_), key=itemgetter(*list(range(0, len(k_[0])))))
         except TypeError:
-            k_ = sorted(set(k_), key=o_itemgetter(*range(0, len(k_[0]))))
-        except IndexError, e:
+            k_ = sorted(set(k_), key=o_itemgetter(*list(range(0, len(k_[0])))))
+        except IndexError as e:
             # if yaxis_order has just one value, we will have trouble with
             # itemgetter on certain circumstances: let's try to catch that kind
             # of problems. Strangely enough, we don't have problems when we
@@ -252,7 +249,7 @@ class PivotTable(object):
         # for every ordered value
         for i in k_:
             # we get the list of appearances of a same key
-            for j in enumerate(ifilter(lambda x: kd(x)==i, self.rows)):
+            for j in enumerate(filter(lambda x: kd(x)==i, self.rows)):
                 # we need to build an iod for every metric for this key...
                 for k in enumerate(ngk):
                     # ... but only one time. we use cn as the index of the 
@@ -280,14 +277,14 @@ class PivotTable(object):
                                 for m in self.yaxis if m['attr']==k[1]]
                     self._r[cn][getattr(j[1], self.xaxis)] = \
                             m_format[0](getattr(j[1], k[1]))
-        return (n.values() for n in self._r)
+        return (list(n.values()) for n in self._r)
 
     def _populate_sheaders(self):
         """For every submitted row, find the attr mapped to xaxis and return a
         list of them"""
         self._sheaders = set()
         if self.xaxis is None:
-            raise(PivotTableError(u'You need to define X-axis'))
+            raise PivotTableError
         for i in self.rows:
             self._sheaders.add(getattr(i, self.xaxis))
 
@@ -295,4 +292,4 @@ class PivotTable(object):
     def _dummy_formatter(value):
         """Return the same value as submitted in unicode"""
         if value is None: return None
-        return unicode(value)
+        return str(value)
